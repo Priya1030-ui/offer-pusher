@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Offer 推送控制台</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="panel config-panel">
+        <div class="panel-heading">
+          <h1>Offer 推送控制台</h1>
+          <div class="top-actions">
+            <span id="loginStatus"></span>
+            <button id="syncButton" class="primary">同步表格</button>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <label>
+            <span>群 chat_id</span>
+            <input id="chatId" autocomplete="off" placeholder="oc_xxx" />
+          </label>
+          <label>
+            <span>标题前缀</span>
+            <input id="titlePrefix" autocomplete="off" />
+          </label>
+          <label class="wide">
+            <span>来源说明</span>
+            <input id="sourceText" autocomplete="off" />
+          </label>
+        </div>
+        <input id="dateText" type="hidden" />
+
+        <details class="advanced">
+          <summary>数据来源</summary>
+          <div class="form-grid">
+            <label class="wide">
+              <span>飞书表格链接</span>
+              <input id="wikiUrl" autocomplete="off" />
+            </label>
+            <label>
+              <span>app_token</span>
+              <input id="appToken" autocomplete="off" placeholder="自动解析，通常不用填" />
+            </label>
+            <label>
+              <span>table_id</span>
+              <input id="tableId" autocomplete="off" />
+            </label>
+            <label>
+              <span>view_id</span>
+              <input id="viewId" autocomplete="off" />
+            </label>
+          </div>
+        </details>
+
+        <details class="advanced">
+          <summary>高级配置</summary>
+          <div class="form-grid">
+            <label>
+              <span>飞书 App ID</span>
+              <input id="appId" autocomplete="off" placeholder="默认 cli，可留空" />
+            </label>
+            <label>
+              <span>飞书 App Secret</span>
+              <input id="appSecret" autocomplete="off" placeholder="已保存或默认，可留空" type="password" />
+            </label>
+            <label>
+              <span>本人 open_id</span>
+              <input id="previewOpenId" autocomplete="off" placeholder="默认本人，可留空" />
+            </label>
+          </div>
+        </details>
+      </section>
+
+      <section class="workspace">
+        <div class="panel table-panel">
+          <div class="toolbar">
+            <div>
+              <strong id="rowCount">0 条数据</strong>
+              <span id="syncStatus">等待同步</span>
+            </div>
+            <div class="toolbar-actions">
+              <button id="selectAllButton">全选</button>
+              <button id="clearButton">清空</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="check-col"></th>
+                  <th>公司</th>
+                  <th>序列</th>
+                  <th>岗位</th>
+                  <th>学历</th>
+                  <th>薪资</th>
+                  <th>备注</th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <aside class="panel preview-panel">
+          <div class="panel-heading">
+            <h2>消息预览</h2>
+            <span id="selectedCount">未选择</span>
+          </div>
+          <article id="preview" class="card-preview"></article>
+          <div class="send-actions">
+            <button id="sendSelfButton" class="primary">智能体发给本人预览</button>
+            <div class="send-row">
+              <input id="targetChatId" autocomplete="off" placeholder="填写 chat_id" />
+              <button id="sendChatButton">发送到群组</button>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" hidden></div>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

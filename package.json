@@ -1,0 +1,11 @@
+{
+  "name": "offer-salary-pusher",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "preview": "node offer-push.mjs --dry-run",
+    "send": "node offer-push.mjs"
+  }
+}

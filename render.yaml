@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: offer-pusher
+    env: docker
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FEISHU_LOGIN_REQUIRED
+        value: "true"
+      - key: FEISHU_APP_ID
+        sync: false
+      - key: FEISHU_APP_SECRET
+        sync: false
+      - key: FEISHU_APP_TOKEN
+        sync: false
+      - key: FEISHU_TABLE_ID
+        sync: false
+      - key: FEISHU_VIEW_ID
+        sync: false
+      - key: FEISHU_PREVIEW_OPEN_ID
+        sync: false
+      - key: FEISHU_GROUP_CHAT_ID
+        sync: false
+      - key: FEISHU_ALLOWED_OPEN_IDS
+        sync: false
+      - key: OFFER_TITLE_PREFIX
+        value: 校招Offer开奖参考
+      - key: OFFER_SOURCE_TEXT
+        value: 整理自Offershow等校招薪资分享中高可信度及热门案例
