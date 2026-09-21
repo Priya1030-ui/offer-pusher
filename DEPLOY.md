@@ -19,10 +19,13 @@ FEISHU_GROUP_CHAT_ID=oc_xxx
 ```text
 FEISHU_LOGIN_REQUIRED=true
 PUBLIC_BASE_URL=https://你的公网域名
-FEISHU_ALLOWED_OPEN_IDS=ou_xxx
+SESSION_SECRET=生成一串随机长密码
+FEISHU_ALLOWED_TENANT_KEYS=tenant_key_xxx
 ```
 
-`FEISHU_ALLOWED_OPEN_IDS` 可留空；留空时，任何能完成飞书登录的人都能进入页面。建议至少填你本人和允许使用者的 open_id。
+`FEISHU_ALLOWED_TENANT_KEYS` 用来限制只允许你公司的飞书组织成员访问。公网部署时不要留空；如果留空，系统会拒绝登录，避免变成“任何飞书账号都能用”。
+
+如果只想给少数人使用，也可以额外配置 `FEISHU_ALLOWED_OPEN_IDS`。
 
 可选：
 
@@ -77,7 +80,8 @@ http://服务器地址:8787
    - `FEISHU_APP_SECRET`
    - `FEISHU_PREVIEW_OPEN_ID`
    - `FEISHU_GROUP_CHAT_ID`
-   - `FEISHU_ALLOWED_OPEN_IDS`
+   - `SESSION_SECRET`
+   - `FEISHU_ALLOWED_TENANT_KEYS`
 4. 首次部署完成后拿到 Render 的 HTTPS 地址，例如：
 
 ```text

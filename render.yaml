@@ -25,6 +25,10 @@ services:
         sync: false
       - key: FEISHU_ALLOWED_OPEN_IDS
         sync: false
+      - key: FEISHU_ALLOWED_TENANT_KEYS
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
       - key: OFFER_TITLE_PREFIX
         value: 校招Offer开奖参考
       - key: OFFER_SOURCE_TEXT

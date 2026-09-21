@@ -18,6 +18,7 @@ const DEFAULT_WIKI_URL = process.env.FEISHU_WIKI_URL || "";
 const DEFAULT_TABLE_ID = process.env.FEISHU_TABLE_ID || "";
 const DEFAULT_VIEW_ID = process.env.FEISHU_VIEW_ID || "";
 const LOGIN_REQUIRED = process.env.FEISHU_LOGIN_REQUIRED === "true";
+const SESSION_SIGNING_SECRET = process.env.SESSION_SECRET || process.env.FEISHU_APP_SECRET || "";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const sessions = new Map();
 const oauthStates = new Map();
@@ -30,7 +31,7 @@ const MIME = {
   ".ico": "image/x-icon",
 };
 
-const server = http.createServer(async (request, response) => {
+export async function handleRequest(request, response) {
   try {
     const url = new URL(request.url, `http://${request.headers.host}`);
     const session = getSession(request);
@@ -137,11 +138,14 @@ const server = http.createServer(async (request, response) => {
     const status = error.expose ? 400 : 500;
     sendJson(response, { ok: false, error: error.message }, status);
   }
-});
+}
 
-server.listen(PORT, () => {
-  console.log(`Offer 推送控制台已启动：http://localhost:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  const server = http.createServer(handleRequest);
+  server.listen(PORT, () => {
+    console.log(`Offer 推送控制台已启动：http://localhost:${PORT}`);
+  });
+}
 
 function isProtectedPath(pathname) {
   return pathname === "/" || pathname.startsWith("/api/") || pathname.endsWith(".html");
@@ -195,21 +199,12 @@ async function handleFeishuCallback(url, request, response) {
   const user = await getFeishuLoginUser(config, code, redirectUri);
   assertAllowedUser(user);
 
-  const sessionId = crypto.randomBytes(32).toString("base64url");
-  sessions.set(sessionId, {
-    user,
-    expiresAt: Date.now() + SESSION_TTL_MS,
-  });
+  const sessionCookie = createSessionCookie(request, user);
 
   response.writeHead(302, {
     Location: "/",
     "Set-Cookie": [
-      serializeCookie("offer_sid", sessionId, {
-        httpOnly: true,
-        sameSite: "Lax",
-        secure: isHttps(request),
-        maxAge: Math.floor(SESSION_TTL_MS / 1000),
-      }),
+      sessionCookie,
       serializeCookie("oauth_state", "", {
         httpOnly: true,
         sameSite: "Lax",
@@ -256,13 +251,30 @@ async function getFeishuLoginUser(config, code, redirectUri) {
   return {
     openId: info.open_id || loginData.open_id || "",
     unionId: info.union_id || loginData.union_id || "",
+    tenantKey: info.tenant_key || loginData.tenant_key || info.tenant?.tenant_key || info.tenant?.key || "",
     name: info.name || info.en_name || "飞书用户",
     avatarUrl: info.avatar_url || "",
   };
 }
 
 function assertAllowedUser(user) {
+  const allowedTenants = splitEnvList(process.env.FEISHU_ALLOWED_TENANT_KEYS || process.env.FEISHU_ALLOWED_TENANT_KEY);
   const allowed = splitEnvList(process.env.FEISHU_ALLOWED_OPEN_IDS);
+
+  if (!allowedTenants.length && !allowed.length) {
+    throw userError("未配置允许访问的飞书企业，请设置 FEISHU_ALLOWED_TENANT_KEYS。");
+  }
+
+  if (allowedTenants.length) {
+    if (!user.tenantKey) {
+      throw userError("飞书登录未返回企业标识，无法确认是否属于公司组织。");
+    }
+    if (!allowedTenants.includes(user.tenantKey)) {
+      throw userError("当前飞书账号不属于允许访问的公司组织。");
+    }
+    return;
+  }
+
   if (allowed.length && !allowed.includes(user.openId)) {
     throw userError("你的飞书账号不在允许访问名单里。");
   }
@@ -270,6 +282,9 @@ function assertAllowedUser(user) {
 
 function getSession(request) {
   const cookies = parseCookies(request.headers.cookie || "");
+  const signedSession = readSignedSession(cookies.offer_session);
+  if (signedSession) return signedSession;
+
   const sessionId = cookies.offer_sid;
   if (!sessionId) return null;
   const session = sessions.get(sessionId);
@@ -280,17 +295,79 @@ function getSession(request) {
   return session;
 }
 
+function createSessionCookie(request, user) {
+  const session = {
+    user,
+    expiresAt: Date.now() + SESSION_TTL_MS,
+  };
+
+  if (SESSION_SIGNING_SECRET) {
+    return serializeCookie("offer_session", signSession(session), {
+      httpOnly: true,
+      sameSite: "Lax",
+      secure: isHttps(request),
+      maxAge: Math.floor(SESSION_TTL_MS / 1000),
+    });
+  }
+
+  const sessionId = crypto.randomBytes(32).toString("base64url");
+  sessions.set(sessionId, session);
+  return serializeCookie("offer_sid", sessionId, {
+    httpOnly: true,
+    sameSite: "Lax",
+    secure: isHttps(request),
+    maxAge: Math.floor(SESSION_TTL_MS / 1000),
+  });
+}
+
+function signSession(session) {
+  const payload = Buffer.from(JSON.stringify(session), "utf8").toString("base64url");
+  return `${payload}.${sessionSignature(payload)}`;
+}
+
+function readSignedSession(value) {
+  if (!value || !SESSION_SIGNING_SECRET) return null;
+  const [payload, signature] = value.split(".");
+  if (!payload || !signature || !safeEqual(signature, sessionSignature(payload))) return null;
+
+  try {
+    const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (!session?.user || !session.expiresAt || session.expiresAt <= Date.now()) return null;
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+function sessionSignature(payload) {
+  return crypto.createHmac("sha256", SESSION_SIGNING_SECRET).update(payload).digest("base64url");
+}
+
+function safeEqual(a, b) {
+  const left = Buffer.from(String(a));
+  const right = Buffer.from(String(b));
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+
 function clearSession(request, response) {
   const cookies = parseCookies(request.headers.cookie || "");
   if (cookies.offer_sid) sessions.delete(cookies.offer_sid);
   response.setHeader(
     "Set-Cookie",
-    serializeCookie("offer_sid", "", {
-      httpOnly: true,
-      sameSite: "Lax",
-      secure: isHttps(request),
-      maxAge: 0,
-    }),
+    [
+      serializeCookie("offer_sid", "", {
+        httpOnly: true,
+        sameSite: "Lax",
+        secure: isHttps(request),
+        maxAge: 0,
+      }),
+      serializeCookie("offer_session", "", {
+        httpOnly: true,
+        sameSite: "Lax",
+        secure: isHttps(request),
+        maxAge: 0,
+      }),
+    ],
   );
 }
 
@@ -389,6 +466,7 @@ function loadConfig() {
 }
 
 function saveConfig(config) {
+  if (process.env.VERCEL || process.env.ALLOW_CONFIG_EDIT !== "true") return;
   fs.writeFileSync(CONFIG_FILE, `${JSON.stringify(cleanConfig(config), null, 2)}\n`, "utf8");
 }
 

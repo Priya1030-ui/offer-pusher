@@ -6,3 +6,6 @@ offers.tsv
 sync-records-*.ndjson
 sync-records-*.manifest.json
 feishu-*-qr.png
+offer-pusher-deploy.zip
+offer-pusher-upload/
+offer-pusher-vercel-upload/
