@@ -197,7 +197,10 @@ async function handleFeishuCallback(url, request, response) {
   const config = loadConfig();
   const redirectUri = `${publicBaseUrl(request)}/auth/callback`;
   const user = await getFeishuLoginUser(config, code, redirectUri);
-  assertAllowedUser(user);
+  const access = getAccessDecision(user);
+  if (!access.allowed) {
+    return sendAccessDenied(response, access, user);
+  }
 
   const sessionCookie = createSessionCookie(request, user);
 
@@ -257,27 +260,72 @@ async function getFeishuLoginUser(config, code, redirectUri) {
   };
 }
 
-function assertAllowedUser(user) {
+function getAccessDecision(user) {
   const allowedTenants = splitEnvList(process.env.FEISHU_ALLOWED_TENANT_KEYS || process.env.FEISHU_ALLOWED_TENANT_KEY);
   const allowed = splitEnvList(process.env.FEISHU_ALLOWED_OPEN_IDS);
 
   if (!allowedTenants.length && !allowed.length) {
-    throw userError("未配置允许访问的飞书企业，请设置 FEISHU_ALLOWED_TENANT_KEYS。");
+    return {
+      allowed: false,
+      reason: "未配置允许访问的飞书企业。",
+      setupHint: user.tenantKey
+        ? `请在部署平台添加环境变量 FEISHU_ALLOWED_TENANT_KEYS=${user.tenantKey}`
+        : "飞书登录未返回企业标识，请确认应用已开启网页应用登录能力。",
+    };
   }
 
   if (allowedTenants.length) {
     if (!user.tenantKey) {
-      throw userError("飞书登录未返回企业标识，无法确认是否属于公司组织。");
+      return {
+        allowed: false,
+        reason: "飞书登录未返回企业标识，无法确认是否属于公司组织。",
+      };
     }
     if (!allowedTenants.includes(user.tenantKey)) {
-      throw userError("当前飞书账号不属于允许访问的公司组织。");
+      return {
+        allowed: false,
+        reason: "当前飞书账号不属于允许访问的公司组织。",
+      };
     }
-    return;
+    return { allowed: true };
   }
 
   if (allowed.length && !allowed.includes(user.openId)) {
-    throw userError("你的飞书账号不在允许访问名单里。");
+    return {
+      allowed: false,
+      reason: "你的飞书账号不在允许访问名单里。",
+    };
   }
+  return { allowed: true };
+}
+
+function sendAccessDenied(response, access, user) {
+  response.writeHead(403, { "Content-Type": "text/html; charset=utf-8" });
+  response.end(`<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>无法访问</title>
+    <style>
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f7f8fa; color: #1f2329; }
+      main { width: min(560px, calc(100vw - 32px)); background: #fff; border: 1px solid #dee0e3; border-radius: 8px; padding: 28px; box-shadow: 0 16px 48px rgba(31,35,41,.08); }
+      h1 { margin: 0 0 12px; font-size: 22px; }
+      p { margin: 10px 0; line-height: 1.7; color: #4e5969; }
+      code { display: block; margin-top: 8px; padding: 10px 12px; border-radius: 6px; background: #f2f3f5; color: #245bdb; overflow-wrap: anywhere; }
+      a { color: #245bdb; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>无法访问小推送助手</h1>
+      <p>${escapeHtml(access.reason)}</p>
+      ${access.setupHint ? `<p>管理员配置提示：<code>${escapeHtml(access.setupHint)}</code></p>` : ""}
+      ${user.tenantKey ? `<p>当前飞书企业标识：<code>${escapeHtml(user.tenantKey)}</code></p>` : ""}
+      <p><a href="/logout">重新登录</a></p>
+    </main>
+  </body>
+</html>`);
 }
 
 function getSession(request) {
@@ -1021,6 +1069,15 @@ function normalizeDate(input) {
 
 function escapeMd(value) {
   return String(value ?? "").replace(/[\\`*_{}\[\]()#+\-.!|]/g, "\\$&");
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function formatSalary(value) {
