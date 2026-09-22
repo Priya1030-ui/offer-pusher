@@ -109,3 +109,23 @@ https://你的公网域名/auth/callback
 ```
 
 应用同时需要开启网页应用登录相关权限，以及读取多维表格和发送消息权限。
+
+## Cloudflare Pages 部署
+
+本项目已包含 `functions/[[path]].js` 和 `wrangler.toml`，可部署到 Cloudflare Pages。
+
+必填环境变量同上，另需设置：
+
+```text
+FEISHU_LOGIN_REQUIRED=true
+PUBLIC_BASE_URL=https://你的 Cloudflare Pages 域名
+SESSION_SECRET=生成一串随机长密码
+FEISHU_ALLOWED_TENANT_KEYS=tenant_key_xxx
+ALLOW_CONFIG_EDIT=false
+```
+
+首次部署后，将飞书开放平台的网页应用重定向地址设置为：
+
+```text
+https://你的 Cloudflare Pages 域名/auth/callback
+```
